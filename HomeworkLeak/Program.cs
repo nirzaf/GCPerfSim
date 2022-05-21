@@ -13,8 +13,8 @@ namespace HomeworkLeak
             var rand = new Random();
             while (true)
             {
-                var obj = new XMLObj() { Nodes = new List<XMLNode>() { new() { Value = rand.Next(int.MaxValue) } } };
-                var xmlSerializer = new XmlSerializer(typeof(XMLObj), new XmlRootAttribute("rootNode"));
+                var obj = new XmlObj() { Nodes = new List<XmlNode>() { new() { Value = rand.Next(int.MaxValue) } } };
+                var xmlSerializer = new XmlSerializer(typeof(XmlObj), new XmlRootAttribute("rootNode"));
                 using (StringWriter textWriter = new StringWriter())
                 {
                     xmlSerializer.Serialize(textWriter, obj);
@@ -26,14 +26,14 @@ namespace HomeworkLeak
     }
 
     [Serializable]
-    public class XMLObj
+    public class XmlObj
     {
         [XmlElement("block")]
-        public List<XMLNode> Nodes { get; set; }
+        public List<XmlNode> Nodes { get; set; }
     }
 
     [Serializable]
-    public class XMLNode
+    public class XmlNode
     {
         public int Value { get; set; }
     }

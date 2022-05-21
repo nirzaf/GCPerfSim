@@ -188,35 +188,35 @@ using System.Reflection;
 #if STATISTICS
 class Statistics
 {
-    public ulong sohAllocatedBytes;
-    public ulong lohAllocatedBytes;
-    public ulong pohAllocatedBytes;
+    public ulong SohAllocatedBytes;
+    public ulong LohAllocatedBytes;
+    public readonly ulong PohAllocatedBytes;
 
-    private static List<Statistics> allStatistics = new List<Statistics>();
+    private static List<Statistics> _allStatistics = new List<Statistics>();
     [ThreadStatic]
-    private static Statistics? threadLocalStatistics = null;
+    private static Statistics? _threadLocalStatistics = null;
 
     public static Statistics GetStatistics()
     {
-        if (threadLocalStatistics == null)
+        if (_threadLocalStatistics == null)
         {
-            lock (allStatistics)
+            lock (_allStatistics)
             {
-                if (threadLocalStatistics == null)
+                if (_threadLocalStatistics == null)
                 {
-                    threadLocalStatistics = new Statistics();
-                    allStatistics.Add(threadLocalStatistics);
+                    _threadLocalStatistics = new Statistics();
+                    _allStatistics.Add(_threadLocalStatistics);
                 }
             }
         }
-        return threadLocalStatistics;
+        return _threadLocalStatistics;
     }
 
     public Statistics()
     {
-        sohAllocatedBytes = 0;
-        lohAllocatedBytes = 0;
-        pohAllocatedBytes = 0;
+        SohAllocatedBytes = 0;
+        LohAllocatedBytes = 0;
+        PohAllocatedBytes = 0;
     }
 
     public static TestResult Aggregate()
@@ -224,17 +224,17 @@ class Statistics
         ulong sohAllocatedBytes = 0;
         ulong lohAllocatedBytes = 0;
         ulong pohAllocatedBytes = 0;
-        foreach (Statistics statistics in allStatistics)
+        foreach (Statistics statistics in _allStatistics)
         {
-            sohAllocatedBytes += statistics.sohAllocatedBytes;
-            lohAllocatedBytes += statistics.lohAllocatedBytes;
-            pohAllocatedBytes += statistics.pohAllocatedBytes;
+            sohAllocatedBytes += statistics.SohAllocatedBytes;
+            lohAllocatedBytes += statistics.LohAllocatedBytes;
+            pohAllocatedBytes += statistics.PohAllocatedBytes;
         }
         return new TestResult
         {
-            sohAllocatedBytes = sohAllocatedBytes,
-            lohAllocatedBytes = lohAllocatedBytes,
-            pohAllocatedBytes = pohAllocatedBytes,
+            SohAllocatedBytes = sohAllocatedBytes,
+            LohAllocatedBytes = lohAllocatedBytes,
+            PohAllocatedBytes = pohAllocatedBytes,
         };
     }
 }
@@ -248,21 +248,21 @@ static class Util
             throw new Exception(message);
     }
 
-    private const ulong BYTES_IN_KB = 1024;
-    private const ulong BYTES_IN_MB = 1024 * BYTES_IN_KB;
-    private const ulong BYTES_IN_GB = 1024 * BYTES_IN_MB;
+    private const ulong BytesInKb = 1024;
+    private const ulong BytesInMb = 1024 * BytesInKb;
+    private const ulong BytesInGb = 1024 * BytesInMb;
 
-    public static double BytesToGB(ulong bytes) =>
-        ((double)bytes) / BYTES_IN_GB;
+    public static double BytesToGb(ulong bytes) =>
+        ((double)bytes) / BytesInGb;
 
-    public static ulong GBToBytes(double GB) =>
-        (ulong)Math.Round(GB * BYTES_IN_GB);
+    public static ulong GbToBytes(double gb) =>
+        (ulong)Math.Round(gb * BytesInGb);
 
-    public static double BytesToMB(ulong bytes) =>
-        ((double)bytes) / BYTES_IN_MB;
+    public static double BytesToMb(ulong bytes) =>
+        ((double)bytes) / BytesInMb;
 
-    public static ulong MBToBytes(double MB) =>
-        (ulong)Math.Round(MB * BYTES_IN_MB);
+    public static ulong MbToBytes(double mb) =>
+        (ulong)Math.Round(mb * BytesInMb);
 
     public static ulong Mean(ulong a, ulong b) =>
         (a + b) / 2;
@@ -309,16 +309,16 @@ static class Util
 
     unsafe static uint GetPointerSize() => (uint)sizeof(IntPtr);
 
-    public static readonly uint POINTER_SIZE = GetPointerSize();
+    public static readonly uint PointerSize = GetPointerSize();
 
-    public static readonly uint OBJECT_HEADER_SIZE = 2 * Util.POINTER_SIZE;
+    public static readonly uint ObjectHeaderSize = 2 * Util.PointerSize;
 
-    public static readonly uint ARRAY_HEADER_SIZE = 3 * Util.POINTER_SIZE;
+    public static readonly uint ArrayHeaderSize = 3 * Util.PointerSize;
 
     public static ulong ArraySize(ITypeWithPayload?[] a) =>
-        (((ulong)a.Length) + 3) * POINTER_SIZE;
+        (((ulong)a.Length) + 3) * PointerSize;
 
-    public static bool isNth(uint interval, ulong count) =>
+    public static bool IsNth(uint interval, ulong count) =>
         interval != 0 && (count % interval) == 0;
 }
 
@@ -343,7 +343,7 @@ sealed class Rand
         low + GetRand(high - low);
 
     public uint GetRand(SizeRange range) =>
-        GetRand(range.low, range.high);
+        GetRand(range.Low, range.High);
 
     public double GetFloat() =>
         (double)GetRand() / (double)0x7FFFFFFF;
@@ -358,8 +358,8 @@ interface ITypeWithPayload
 
 enum TestKind
 {
-    time,
-    highsurvival,
+    Time,
+    Highsurvival,
 }
 
 enum ItemType
@@ -385,15 +385,15 @@ class Item : ITypeWithPayload
     public static long NumFreed = 0;
 #endif
 
-    public byte[]? payload; // Only null if this item has been freed
-    public ItemState state;
-    public GCHandle h;
+    public byte[]? Payload; // Only null if this item has been freed
+    public readonly ItemState State;
+    public GCHandle H;
 
-    public static readonly uint FieldSize = 3 * Util.POINTER_SIZE;
-    public static readonly uint ItemObjectSize = Util.OBJECT_HEADER_SIZE + FieldSize;
+    public static readonly uint FieldSize = 3 * Util.PointerSize;
+    public static readonly uint ItemObjectSize = Util.ObjectHeaderSize + FieldSize;
 
-    public static uint ArrayOverhead = ItemObjectSize + Util.ARRAY_HEADER_SIZE;
-    public static uint SohOverhead = ItemObjectSize;
+    public static readonly uint ArrayOverhead = ItemObjectSize + Util.ArrayHeaderSize;
+    public static readonly uint SohOverhead = ItemObjectSize;
 
     // TODO: isWeakLong never used
     public static Item New(uint size, bool isPinned, bool isFinalizable, bool isWeakLong = false, bool isPoh = false)
@@ -412,7 +412,7 @@ class Item : ITypeWithPayload
 #endif
 #if STATISTICS
         Statistics statistics = Statistics.GetStatistics();
-        statistics.sohAllocatedBytes += ItemObjectSize;
+        statistics.SohAllocatedBytes += ItemObjectSize;
 #endif
         if (size <= ArrayOverhead)
         {
@@ -438,44 +438,44 @@ class Item : ITypeWithPayload
 #if STATISTICS
             if (size >= MemoryAlloc.LohThreshold)
             {
-                statistics.lohAllocatedBytes += remainingSize;
+                statistics.LohAllocatedBytes += remainingSize;
             }
             else
             {
-                statistics.sohAllocatedBytes += remainingSize;
+                statistics.SohAllocatedBytes += remainingSize;
             }
 #endif
-            payload = new byte[payloadSize];
+            Payload = new byte[payloadSize];
         }
 
         // We only support these 3 states right now.
-        state = (isPinned ? ItemState.Pinned : (isWeakLong ? ItemState.WeakLong : ItemState.NoHandle));
+        State = (isPinned ? ItemState.Pinned : (isWeakLong ? ItemState.WeakLong : ItemState.NoHandle));
 
         // We can consider supporting multiple handles pointing to the same object. For now 
         // I am only doing at most one handle per item.
         if (isPinned || isWeakLong)
         {
-            h = GCHandle.Alloc(payload, isPinned ? GCHandleType.Pinned : GCHandleType.WeakTrackResurrection);
+            H = GCHandle.Alloc(Payload, isPinned ? GCHandleType.Pinned : GCHandleType.WeakTrackResurrection);
         }
 
         Debug.Assert(TotalSize == size);
     }
 
-    public ulong TotalSize => ArrayOverhead + (ulong)Util.NonNull(payload).Length;
+    public ulong TotalSize => ArrayOverhead + (ulong)Util.NonNull(Payload).Length;
 
     public void Free()
     {
 #if DEBUG
         Interlocked.Increment(ref NumFreed);
 
-        switch (state)
+        switch (State)
         {
             case ItemState.NoHandle:
-                Util.AlwaysAssert(!h.IsAllocated);
+                Util.AlwaysAssert(!H.IsAllocated);
                 break;
             case ItemState.Pinned:
             case ItemState.WeakLong:
-                Util.AlwaysAssert(h.IsAllocated);
+                Util.AlwaysAssert(H.IsAllocated);
                 break;
             case ItemState.Strong:
             case ItemState.WeakShort:
@@ -485,21 +485,21 @@ class Item : ITypeWithPayload
         }
 #endif
 
-        Debug.Assert((h.IsAllocated) == (state != ItemState.NoHandle)); // Note: this means the enum isn't useful..
-        if (state != ItemState.NoHandle)
+        Debug.Assert((H.IsAllocated) == (State != ItemState.NoHandle)); // Note: this means the enum isn't useful..
+        if (State != ItemState.NoHandle)
         {
-            Debug.Assert(h.IsAllocated);
+            Debug.Assert(H.IsAllocated);
             // Console.WriteLine("freeing handle to byte[{0}]", payload.Length);
-            h.Free();
+            H.Free();
         }
 
-        Util.AlwaysAssert(!h.IsAllocated);
+        Util.AlwaysAssert(!H.IsAllocated);
 
-        payload = null;
+        Payload = null;
     }
 
     public byte[] GetPayload() =>
-        Util.NonNull(payload);
+        Util.NonNull(Payload);
 };
 
 // This just contains a byte array to take up space
@@ -511,19 +511,19 @@ class SimpleRefPayLoad
     public static long NumUnpinned = 0;
 #endif
 
-    public byte[] payload;
+    public readonly byte[] Payload;
     GCHandle handle;
 
-    public static readonly uint FieldSize = 2 * Util.POINTER_SIZE;
-    public static readonly uint SimpleRefPayLoadSize = Util.OBJECT_HEADER_SIZE + FieldSize;
+    public static readonly uint FieldSize = 2 * Util.PointerSize;
+    public static readonly uint SimpleRefPayLoadSize = Util.ObjectHeaderSize + FieldSize;
 
-    public static uint ArrayOverhead = SimpleRefPayLoadSize + Util.ARRAY_HEADER_SIZE;
+    public static readonly uint ArrayOverhead = SimpleRefPayLoadSize + Util.ArrayHeaderSize;
 
     public SimpleRefPayLoad(uint size, bool isPinned, bool isPoh)
     {
 #if STATISTICS
         Statistics statistics = Statistics.GetStatistics();
-        statistics.sohAllocatedBytes += SimpleRefPayLoadSize;
+        statistics.SohAllocatedBytes += SimpleRefPayLoadSize;
 #endif
         uint sizePayload = size - ArrayOverhead;
         uint remainingSize = size - SimpleRefPayLoadSize;
@@ -543,21 +543,21 @@ class SimpleRefPayLoad
 #if STATISTICS
             if (size >= MemoryAlloc.LohThreshold)
             {
-                statistics.lohAllocatedBytes += remainingSize;
+                statistics.LohAllocatedBytes += remainingSize;
             }
             else
             {
-                statistics.sohAllocatedBytes += remainingSize;
+                statistics.SohAllocatedBytes += remainingSize;
             }
 #endif
-            payload = new byte[sizePayload];
+            Payload = new byte[sizePayload];
         }
 
         Debug.Assert(OwnSize == size);
 
         if (isPinned)
         {
-            handle = GCHandle.Alloc(payload, GCHandleType.Pinned);
+            handle = GCHandle.Alloc(Payload, GCHandleType.Pinned);
 #if DEBUG
             Interlocked.Increment(ref NumPinned);
 #endif
@@ -575,7 +575,7 @@ class SimpleRefPayLoad
         }
     }
 
-    public ulong OwnSize => ((ulong)payload.Length) + ArrayOverhead;
+    public ulong OwnSize => ((ulong)Payload.Length) + ArrayOverhead;
 }
 
 enum ReferenceItemOperation
@@ -610,13 +610,13 @@ abstract class ReferenceItemWithSize : ITypeWithPayload
     private ReferenceItemWithSize? next; // Note: ReferenceItemWithSize owns its 'next' -- should be the only reference to that
     public ulong TotalSize { get; private set; }
     
-    public static readonly uint FieldSize = 2 * Util.POINTER_SIZE + sizeof(ulong);
-    public static readonly uint ReferenceItemWithSizeSize = Util.OBJECT_HEADER_SIZE + FieldSize;
+    public static readonly uint FieldSize = 2 * Util.PointerSize + sizeof(ulong);
+    public static readonly uint ReferenceItemWithSizeSize = Util.ObjectHeaderSize + FieldSize;
 
-    public static readonly uint ArrayHeaderSize = 3 * Util.POINTER_SIZE;
+    public static readonly uint ArrayHeaderSize = 3 * Util.PointerSize;
 
-    public static uint SohOverhead = ReferenceItemWithSizeSize + SimpleRefPayLoad.SimpleRefPayLoadSize;
-    public static uint SimpleOverhead = ReferenceItemWithSizeSize;
+    public static readonly uint SohOverhead = ReferenceItemWithSizeSize + SimpleRefPayLoad.SimpleRefPayLoadSize;
+    public static readonly uint SimpleOverhead = ReferenceItemWithSizeSize;
 
     public static ReferenceItemWithSize New(uint size, bool isPinned, bool isFinalizable, bool isPoh)
     {
@@ -640,7 +640,7 @@ abstract class ReferenceItemWithSize : ITypeWithPayload
 #endif
 #if STATISTICS
         Statistics statistics = Statistics.GetStatistics();
-        statistics.sohAllocatedBytes += ReferenceItemWithSizeSize;
+        statistics.SohAllocatedBytes += ReferenceItemWithSizeSize;
 #endif
         uint sizePayload = size - SimpleOverhead;
         payload = new SimpleRefPayLoad(sizePayload, isPinned: isPinned, isPoh: isPoh);
@@ -671,7 +671,7 @@ abstract class ReferenceItemWithSize : ITypeWithPayload
         next = null;
     }
 
-    public byte[] GetPayload() => Util.NonNull(payload).payload;
+    public byte[] GetPayload() => Util.NonNull(payload).Payload;
 
     private ulong OwnSize => Util.NonNull(payload).OwnSize + SimpleOverhead;
 
@@ -720,56 +720,56 @@ abstract class ReferenceItemWithSize : ITypeWithPayload
 
 readonly struct SizeRange
 {
-    public readonly uint low;
-    public readonly uint high;
+    public readonly uint Low;
+    public readonly uint High;
 
     public SizeRange(uint low, uint high)
     {
-        this.low = low;
-        this.high = high;
+        this.Low = low;
+        this.High = high;
     }
 
-    public ulong Mean => Util.Mean(low, high);
+    public ulong Mean => Util.Mean(Low, High);
 
     public override string ToString() =>
-        $"{low}-{high}";
+        $"{Low}-{High}";
 }
 
 readonly struct BucketSpec
 {
-    public readonly SizeRange sizeRange;
-    public readonly uint survInterval;
+    public readonly SizeRange SizeRange;
+    public readonly uint SurvInterval;
     // Note: pinInterval and finalizableInterval only affect surviving objects
-    public readonly uint pinInterval;
-    public readonly uint finalizableInterval;
+    public readonly uint PinInterval;
+    public readonly uint FinalizableInterval;
     // If we have buckets with weights of 2 and 1, we'll allocate, on average, 2 objects from the first bucket per 1 from the next.
-    public readonly double weight;
+    public readonly double Weight;
 
-    public readonly bool isPoh;
+    public readonly bool IsPoh;
     public BucketSpec(SizeRange sizeRange, uint survInterval, uint pinInterval, uint finalizableInterval, double weight, bool isPoh = false)
     {
         Debug.Assert(weight != 0);
-        this.sizeRange = sizeRange;
-        this.survInterval = survInterval;
-        this.pinInterval = pinInterval;
-        this.finalizableInterval = finalizableInterval;
-        this.weight = weight;
-        this.isPoh = isPoh;
+        this.SizeRange = sizeRange;
+        this.SurvInterval = survInterval;
+        this.PinInterval = pinInterval;
+        this.FinalizableInterval = finalizableInterval;
+        this.Weight = weight;
+        this.IsPoh = isPoh;
 
         // Should avoid creating the bucket in this case, as our algorithm assumes it should use the bucket at least once
         Util.AlwaysAssert(weight != 0);
 
-        if (this.pinInterval != 0 || this.finalizableInterval != 0)
+        if (this.PinInterval != 0 || this.FinalizableInterval != 0)
         {
             Util.AlwaysAssert(
-                this.survInterval != 0,
+                this.SurvInterval != 0,
                 $"pinInterval and finalizableInterval only affect surviving objects, but nothing survives (in bucket with size range {sizeRange})");
         }
     }
 
     public override string ToString()
     {
-        string result = $"{sizeRange}; surv every {survInterval}; pin every {pinInterval}; finalizable every {finalizableInterval}; weight {weight}";
+        string result = $"{SizeRange}; surv every {SurvInterval}; pin every {PinInterval}; finalizable every {FinalizableInterval}; weight {Weight}";
 
 #if NET5_0
         result += $"; isPoh {isPoh}";
@@ -781,12 +781,12 @@ readonly struct BucketSpec
 
 readonly struct Phase
 {
-    public readonly TestKind testKind;
-    public readonly ItemType allocType;
-    public readonly ulong totalLiveBytes;
-    public readonly ulong totalAllocBytes;
-    public readonly double totalMinutesToRun;
-    public readonly BucketSpec[] buckets;
+    public readonly TestKind TestKind;
+    public readonly ItemType AllocType;
+    public readonly ulong TotalLiveBytes;
+    public readonly ulong TotalAllocBytes;
+    public readonly double TotalMinutesToRun;
+    public readonly BucketSpec[] Buckets;
 
     public Phase(
         TestKind testKind,
@@ -796,17 +796,17 @@ readonly struct Phase
     {
         Util.AlwaysAssert(totalAllocBytes != 0); // Must be set
 
-        this.testKind = testKind;
-        this.totalLiveBytes = totalLiveBytes;
-        this.totalAllocBytes = totalAllocBytes;
-        this.totalMinutesToRun = totalMinutesToRun;
-        this.buckets = buckets;
-        this.allocType = allocType;
+        this.TestKind = testKind;
+        this.TotalLiveBytes = totalLiveBytes;
+        this.TotalAllocBytes = totalAllocBytes;
+        this.TotalMinutesToRun = totalMinutesToRun;
+        this.Buckets = buckets;
+        this.AllocType = allocType;
     }
 
     public void Validate()
     {
-        Util.AlwaysAssert(totalAllocBytes != 0); // Must be set
+        Util.AlwaysAssert(TotalAllocBytes != 0); // Must be set
     }
 
     public bool print => false;
@@ -814,24 +814,24 @@ readonly struct Phase
 
     public void Describe()
     {
-        Console.WriteLine($"{testKind}, {allocType}, tlgb {Util.BytesToGB(totalLiveBytes)}, tagb {Util.BytesToGB(totalAllocBytes)}, totalMins {totalMinutesToRun}, buckets:");
-        for (uint i = 0; i < buckets.Length; i++)
+        Console.WriteLine($"{TestKind}, {AllocType}, tlgb {Util.BytesToGb(TotalLiveBytes)}, tagb {Util.BytesToGb(TotalAllocBytes)}, totalMins {TotalMinutesToRun}, buckets:");
+        for (uint i = 0; i < Buckets.Length; i++)
         {
-            Console.WriteLine("    {0}", buckets[i]);
+            Console.WriteLine("    {0}", Buckets[i]);
         }
     }
 }
 
 readonly struct PerThreadArgs
 {
-    public readonly bool verifyLiveSize;
-    public readonly uint printEveryNthIter;
-    public readonly Phase[] phases;
+    public readonly bool VerifyLiveSize;
+    public readonly uint PrintEveryNthIter;
+    public readonly Phase[] Phases;
     public PerThreadArgs(bool verifyLiveSize, uint printEveryNthIter, Phase[] phases)
     {
-        this.verifyLiveSize = verifyLiveSize;
-        this.printEveryNthIter = printEveryNthIter;
-        this.phases = phases;
+        this.VerifyLiveSize = verifyLiveSize;
+        this.PrintEveryNthIter = printEveryNthIter;
+        this.Phases = phases;
         for (uint i = 0; i < phases.Length; i++)
         {
             phases[i].Validate();
@@ -1050,24 +1050,24 @@ ref struct TextReader
 
 class Args
 {
-    public readonly uint threadCount;
-    public readonly PerThreadArgs perThreadArgs;
-    public readonly bool finishWithFullCollect;
-    public readonly bool endException;
+    public readonly uint ThreadCount;
+    public readonly PerThreadArgs PerThreadArgs;
+    public readonly bool FinishWithFullCollect;
+    public readonly bool EndException;
 
     public Args(uint threadCount, in PerThreadArgs perThreadArgs, bool finishWithFullCollect, bool endException)
     {
-        this.threadCount = threadCount;
-        this.perThreadArgs = perThreadArgs;
-        this.finishWithFullCollect = finishWithFullCollect;
-        this.endException = endException;
+        this.ThreadCount = threadCount;
+        this.PerThreadArgs = perThreadArgs;
+        this.FinishWithFullCollect = finishWithFullCollect;
+        this.EndException = endException;
     }
 
     public void Describe()
     {
-        Console.WriteLine($"Running {threadCount} threads.");
-        for (uint i = 0; i < perThreadArgs.phases.Length; i++)
-            perThreadArgs.phases[i].Describe();
+        Console.WriteLine($"Running {ThreadCount} threads.");
+        for (uint i = 0; i < PerThreadArgs.Phases.Length; i++)
+            PerThreadArgs.Phases[i].Describe();
     }
 }
 
@@ -1099,10 +1099,10 @@ class ArgsParser
     }
 
     private static TestKind ParseTestKind(CharSpan str) =>
-        (TestKind)EnumFromNames(testKindNames, str);
+        (TestKind)EnumFromNames(TestKindNames, str);
 
     private static ItemType ParseItemType(CharSpan str) =>
-        (ItemType)EnumFromNames(itemTypeNames, str);
+        (ItemType)EnumFromNames(ItemTypeNames, str);
 
     private static void ParseRange(string str, out uint lo, out uint hi)
     {
@@ -1112,8 +1112,8 @@ class ArgsParser
         hi = ParseUInt32(parts[1]);
     }
 
-    private static readonly string[] testKindNames = new string[] { "time", "highSurvival" };
-    private static readonly string[] itemTypeNames = new string[] { "simple", "reference" };
+    private static readonly string[] TestKindNames = new string[] { "time", "highSurvival" };
+    private static readonly string[] ItemTypeNames = new string[] { "simple", "reference" };
 
     private static uint ParseUInt32(string s)
     {
@@ -1197,7 +1197,7 @@ class ArgsParser
 
     static (State, Phase) ParsePhase(ref TextReader text, uint threadCount)
     {
-        TestKind testKind = TestKind.time;
+        TestKind testKind = TestKind.Time;
         ulong? totalLiveBytes = null;
         ulong? totalAllocBytes = null;
         double totalMinutesToRun = 0;
@@ -1251,19 +1251,19 @@ class ArgsParser
                     }
                     else if (word == "totalLiveGB")
                     {
-                        totalLiveBytes = Util.GBToBytes(text.TakeUlong());
+                        totalLiveBytes = Util.GbToBytes(text.TakeUlong());
                     }
                     else if (word == "totalAllocGB")
                     {
-                        totalAllocBytes = Util.GBToBytes(text.TakeUlong());
+                        totalAllocBytes = Util.GbToBytes(text.TakeUlong());
                     }
                     else if (word == "totalLiveMB")
                     {
-                        totalLiveBytes = Util.MBToBytes(text.TakeUlong());
+                        totalLiveBytes = Util.MbToBytes(text.TakeUlong());
                     }
                     else if (word == "totalAllocMB")
                     {
-                        totalAllocBytes = Util.MBToBytes(text.TakeUlong());
+                        totalAllocBytes = Util.MbToBytes(text.TakeUlong());
                     }
                     else
                     {
@@ -1294,11 +1294,11 @@ class ArgsParser
 
     static (State, BucketSpec) ParseBucket(ref TextReader text)
     {
-        uint lowSize = DEFAULT_SOH_ALLOC_LOW;
-        uint highSize = DEFAULT_SOH_ALLOC_HIGH;
-        uint survInterval = DEFAULT_SOH_SURV_INTERVAL;
-        uint pinInterval = DEFAULT_PINNING_INTERVAL;
-        uint finalizableInterval = DEFAULT_FINALIZABLE_INTERVAL;
+        uint lowSize = SohAllocLow;
+        uint highSize = SohAllocHigh;
+        uint survInterval = SohSurvInterval;
+        uint pinInterval = PinningInterval;
+        uint finalizableInterval = FinalizableInterval;
         uint weight = 1;
         bool isPoh = false;
         while (true)
@@ -1379,16 +1379,16 @@ class ArgsParser
         }
     }
 
-    private const uint DEFAULT_SOH_ALLOC_LOW = 100;
-    private const uint DEFAULT_SOH_ALLOC_HIGH = 4000;
-    private const uint DEFAULT_SOH_SURV_INTERVAL = 30;
+    private const uint SohAllocLow = 100;
+    private const uint SohAllocHigh = 4000;
+    private const uint SohSurvInterval = 30;
 
-    private const uint DEFAULT_LOH_ALLOC_LOW = 100 * 1024;
-    private const uint DEFAULT_LOH_ALLOC_HIGH = 200 * 1024;
-    private const uint DEFAULT_LOH_SURV_INTERVAL = 5;
+    private const uint LohAllocLow = 100 * 1024;
+    private const uint LohAllocHigh = 200 * 1024;
+    private const uint LohSurvInterval = 5;
 
-    private const uint DEFAULT_POH_ALLOC_LOW = 100;
-    private const uint DEFAULT_POH_ALLOC_HIGH = 200 * 1024;
+    private const uint PohAllocLow = 100;
+    private const uint PohAllocHigh = 200 * 1024;
 
 #if NET5_0
     private const uint DEFAULT_POH_PINNING_INTERVAL = 0;
@@ -1396,31 +1396,31 @@ class ArgsParser
     private const uint DEFAULT_POH_SURV_INTERVAL = 0;
 #endif
 
-    private const uint DEFAULT_PINNING_INTERVAL = 100;
-    private const uint DEFAULT_FINALIZABLE_INTERVAL = 0;
+    private const uint PinningInterval = 100;
+    private const uint FinalizableInterval = 0;
 
     private static Args ParseFromCommandLine(string[] args)
     {
-        TestKind testKind = TestKind.time;
+        TestKind testKind = TestKind.Time;
         uint threadCount = 4;
         uint lohAllocRatioArg = 0;
         ulong? totalLiveBytes = null;
         ulong? totalAllocBytes = null;
         double totalMinutesToRun = 0.0;
-        uint sohAllocLow = DEFAULT_SOH_ALLOC_LOW;
-        uint sohAllocHigh = DEFAULT_SOH_ALLOC_HIGH;
-        uint lohAllocLow = DEFAULT_LOH_ALLOC_LOW;
-        uint lohAllocHigh = DEFAULT_LOH_ALLOC_HIGH;
+        uint sohAllocLow = SohAllocLow;
+        uint sohAllocHigh = SohAllocHigh;
+        uint lohAllocLow = LohAllocLow;
+        uint lohAllocHigh = LohAllocHigh;
         // default is we survive every 30th element for SOH...this is about 3%.
-        uint sohSurvInterval = DEFAULT_SOH_SURV_INTERVAL;
-        uint lohSurvInterval = DEFAULT_LOH_SURV_INTERVAL;
-        uint sohPinInterval = DEFAULT_PINNING_INTERVAL;
-        uint lohPinInterval = DEFAULT_PINNING_INTERVAL;
-        uint sohFinalizableInterval = DEFAULT_FINALIZABLE_INTERVAL;
-        uint lohFinalizableInterval = DEFAULT_FINALIZABLE_INTERVAL;
+        uint sohSurvInterval = SohSurvInterval;
+        uint lohSurvInterval = LohSurvInterval;
+        uint sohPinInterval = PinningInterval;
+        uint lohPinInterval = PinningInterval;
+        uint sohFinalizableInterval = FinalizableInterval;
+        uint lohFinalizableInterval = FinalizableInterval;
 
-        uint pohAllocLow = DEFAULT_POH_ALLOC_LOW;
-        uint pohAllocHigh = DEFAULT_POH_ALLOC_HIGH;
+        uint pohAllocLow = PohAllocLow;
+        uint pohAllocHigh = PohAllocHigh;
 
 #if NET5_0
         uint pohFinalizableInterval = DEFAULT_POH_FINALIZABLE_INTERVAL;
@@ -1467,11 +1467,11 @@ class ArgsParser
                     break;
                 case "-totalLiveGB":
                 case "-tlgb":
-                    totalLiveBytes = Util.GBToBytes(ParseDouble(args[++i]));
+                    totalLiveBytes = Util.GbToBytes(ParseDouble(args[++i]));
                     break;
                 case "-totalAllocGB":
                 case "-tagb":
-                    totalAllocBytes = Util.GBToBytes(ParseDouble(args[++i]));
+                    totalAllocBytes = Util.GbToBytes(ParseDouble(args[++i]));
                     break;
                 case "-totalMins":
                 case "-tm":
@@ -1679,74 +1679,74 @@ readonly struct ObjectSpec
 
 class Bucket
 {
-    public readonly BucketSpec spec;
-    public ulong count; // Used for pinInterval and survInterval
-    public ulong allocatedBytesTotalSum;
-    public ulong sohAllocatedBytes;
-    public ulong lohAllocatedBytes;
-    public ulong pohAllocatedBytes;
-    public ulong allocatedBytesAsOfLastPrint;
-    public ulong survivedBytesSinceLastPrint;
-    public ulong pinnedBytesSinceLastPrint;
-    public ulong allocatedCountSinceLastPrint;
-    public ulong survivedCountSinceLastPrint;
+    public readonly BucketSpec Spec;
+    public ulong Count; // Used for pinInterval and survInterval
+    public ulong AllocatedBytesTotalSum;
+    public ulong SohAllocatedBytes;
+    public ulong LohAllocatedBytes;
+    public ulong PohAllocatedBytes;
+    public ulong AllocatedBytesAsOfLastPrint;
+    public ulong SurvivedBytesSinceLastPrint;
+    public ulong PinnedBytesSinceLastPrint;
+    public ulong AllocatedCountSinceLastPrint;
+    public ulong SurvivedCountSinceLastPrint;
 
     public Bucket(BucketSpec spec)
     {
-        this.spec = spec;
-        count = 0;
-        allocatedBytesTotalSum = 0;
-        sohAllocatedBytes = 0;
-        lohAllocatedBytes = 0;
-        pohAllocatedBytes = 0;
-        allocatedBytesAsOfLastPrint = 0;
-        survivedBytesSinceLastPrint = 0;
-        pinnedBytesSinceLastPrint = 0;
-        allocatedCountSinceLastPrint = 0;
-        survivedCountSinceLastPrint = 0;
+        this.Spec = spec;
+        Count = 0;
+        AllocatedBytesTotalSum = 0;
+        SohAllocatedBytes = 0;
+        LohAllocatedBytes = 0;
+        PohAllocatedBytes = 0;
+        AllocatedBytesAsOfLastPrint = 0;
+        SurvivedBytesSinceLastPrint = 0;
+        PinnedBytesSinceLastPrint = 0;
+        AllocatedCountSinceLastPrint = 0;
+        SurvivedCountSinceLastPrint = 0;
     }
 
-    public SizeRange sizeRange => spec.sizeRange;
-    public uint survInterval => spec.survInterval;
-    public uint pinInterval => spec.pinInterval;
-    public uint finalizableInterval => spec.finalizableInterval;
+    public SizeRange sizeRange => Spec.SizeRange;
+    public uint survInterval => Spec.SurvInterval;
+    public uint pinInterval => Spec.PinInterval;
+    public uint finalizableInterval => Spec.FinalizableInterval;
     // If we have buckets with weights of 2 and 1, we'll allocate 2 objects from the first bucket, then 1 from the next.
-    public double weight => spec.weight;
-    public bool isPoh => spec.isPoh;
+    public double weight => Spec.Weight;
+    public bool isPoh => Spec.IsPoh;
 
     public ObjectSpec GetObjectSpec(Rand rand, uint overhead)
     {
-        count++;
+        Count++;
 
         uint size = rand.GetRand(sizeRange);
-        bool shouldSurvive = Util.isNth(survInterval, count);
-        bool shouldBePinned = shouldSurvive && Util.isNth(pinInterval, count / survInterval);
-        bool shouldBeFinalizable = shouldSurvive && Util.isNth(finalizableInterval, count / survInterval);
+        bool shouldSurvive = Util.IsNth(survInterval, Count);
+        bool shouldBePinned = shouldSurvive && Util.IsNth(pinInterval, Count / survInterval);
+        bool shouldBeFinalizable = shouldSurvive && Util.IsNth(finalizableInterval, Count / survInterval);
 
         if (isPoh)
         {
-            sohAllocatedBytes += overhead;
-            pohAllocatedBytes += (size - overhead);
+            SohAllocatedBytes += overhead;
+            PohAllocatedBytes += (size - overhead);
         }
         else if (size >= 85000)
         {
-            sohAllocatedBytes += overhead;
-            lohAllocatedBytes += (size - overhead);
+            SohAllocatedBytes += overhead;
+            LohAllocatedBytes += (size - overhead);
         }
         else
         {
-            sohAllocatedBytes += size;
+            SohAllocatedBytes += size;
         }
-        allocatedBytesTotalSum += size;
-        allocatedCountSinceLastPrint++;
+        AllocatedBytesTotalSum += size;
+        AllocatedCountSinceLastPrint++;
         if (shouldBePinned)
         {
-            pinnedBytesSinceLastPrint += size;
+            PinnedBytesSinceLastPrint += size;
         }
         if (shouldSurvive)
         {
-            survivedBytesSinceLastPrint += size;
-            survivedCountSinceLastPrint++;
+            SurvivedBytesSinceLastPrint += size;
+            SurvivedCountSinceLastPrint++;
         }
 
         return new ObjectSpec(size, shouldBePinned: shouldBePinned, shouldBeFinalizable: shouldBeFinalizable, shouldSurvive: shouldSurvive, isPoh: isPoh);
@@ -1755,18 +1755,18 @@ class Bucket
 
 struct BucketChooser
 {
-    public readonly Bucket[] buckets;
+    public readonly Bucket[] Buckets;
     private readonly double combinedWeight;
 
     public BucketChooser(BucketSpec[] bucketSpecs)
     {
         Util.AlwaysAssert(bucketSpecs.Length != 0);
-        this.buckets = new Bucket[bucketSpecs.Length];
+        this.Buckets = new Bucket[bucketSpecs.Length];
         double weightSum = 0;
         for (uint i = 0; i < bucketSpecs.Length; i++)
         {
             var bucket = new Bucket(bucketSpecs[i]);
-            this.buckets[i] = bucket;
+            this.Buckets[i] = bucket;
             weightSum += bucket.weight;
         }
         combinedWeight = weightSum;
@@ -1776,9 +1776,9 @@ struct BucketChooser
     {
         var nextRand = rand.GetFloat() * combinedWeight;
 
-        for (int i = 0; i < buckets.Length; i++)
+        for (int i = 0; i < Buckets.Length; i++)
         {
-            var curBucket = buckets[i];
+            var curBucket = Buckets[i];
             if (nextRand < curBucket.weight)
             {
                 return curBucket;
@@ -1799,9 +1799,9 @@ struct BucketChooser
         double totalAverage = 0;
         double totalWeight = 0;
         // https://github.com/dotnet/csharplang/issues/461
-        for (uint i = 0; i < buckets.Length; i++)
+        for (uint i = 0; i < Buckets.Length; i++)
         {
-            Bucket bucket = buckets[i];
+            Bucket bucket = Buckets[i];
             totalAverage += bucket.sizeRange.Mean * bucket.weight;
             totalWeight += bucket.weight;
         }
@@ -1814,7 +1814,7 @@ class ThreadLauncher
 {
     readonly uint threadIndex;
     readonly PerThreadArgs perThreadArgs;
-    public MemoryAlloc? alloc; // To be created by the thread
+    public MemoryAlloc? Alloc; // To be created by the thread
 
     public MemoryAlloc Alloc => Util.NonNull(alloc);
 
@@ -1834,32 +1834,32 @@ class ThreadLauncher
 // Encapsulating this to ensure items are freed
 struct OldArr
 {
-    public readonly ITypeWithPayload?[] items;
+    public readonly ITypeWithPayload?[] Items;
     public ulong TotalLiveBytes { get; private set; }
     public uint NonEmptyLength;
 
     public OldArr(ulong numElements)
     {
-        items = new ITypeWithPayload?[numElements];
-        TotalLiveBytes = Util.ArraySize(items);
+        Items = new ITypeWithPayload?[numElements];
+        TotalLiveBytes = Util.ArraySize(Items);
         NonEmptyLength = (uint)numElements;
     }
 
-    public ulong OwnSize => Util.ArraySize(items);
+    public ulong OwnSize => Util.ArraySize(Items);
 
     public void Initialize(uint index, ITypeWithPayload item)
     {
-        Debug.Assert(items[index] == null);
-        items[index] = item;
+        Debug.Assert(Items[index] == null);
+        Items[index] = item;
         TotalLiveBytes += item.TotalSize;
     }
 
-    public ITypeWithPayload? Peek(uint index) => items[index];
+    public ITypeWithPayload? Peek(uint index) => Items[index];
 
     public void Free(uint index)
     {
-        ITypeWithPayload? item = items[index];
-        items[index] = null;
+        ITypeWithPayload? item = Items[index];
+        Items[index] = null;
         ulong size = item?.TotalSize ?? 0;
         item?.Free();
         TotalLiveBytes -= size;
@@ -1869,25 +1869,25 @@ struct OldArr
     {
         Free(index);
         TotalLiveBytes += newItem.TotalSize;
-        items[index] = newItem;
+        Items[index] = newItem;
     }
 
     public ITypeWithPayload? TakeAndReduceTotalSizeButDoNotFree(uint index)
     {
-        ITypeWithPayload? item = items[index];
+        ITypeWithPayload? item = Items[index];
         if (item != null)
         {
-            items[index] = null;
+            Items[index] = null;
             TotalLiveBytes -= item.TotalSize;
         }
         return item;
     }
 
-    public uint Length => (uint)items.Length;
+    public uint Length => (uint)Items.Length;
 
     public void FreeAll()
     {
-        for (uint i = 0; i < items.Length; i++)
+        for (uint i = 0; i < Items.Length; i++)
         {
             Free(i);
         }
@@ -1898,23 +1898,23 @@ struct OldArr
     public void VerifyLiveSize()
     {
         ulong liveSizeCalculated = OwnSize;
-        for (uint i = 0; i < items.Length; i++)
-            liveSizeCalculated += items[i]?.TotalSize ?? 0;
+        for (uint i = 0; i < Items.Length; i++)
+            liveSizeCalculated += Items[i]?.TotalSize ?? 0;
         Debug.Assert(liveSizeCalculated == TotalLiveBytes);
     }
 }
 
 struct TestResult
 {
-    public double secondsTaken;
-    public ulong sohAllocatedBytes;
-    public ulong lohAllocatedBytes;
-    public ulong pohAllocatedBytes;
+    public double SecondsTaken;
+    public ulong SohAllocatedBytes;
+    public ulong LohAllocatedBytes;
+    public ulong PohAllocatedBytes;
 }
 
 class MemoryAlloc
 {
-    public static int LohThreshold = 85000;
+    public static readonly int LohThreshold = 85000;
 
     private readonly Rand rand;
     OldArr oldArr;
@@ -1927,17 +1927,17 @@ class MemoryAlloc
 
     // TODO: replace this with an array that records the 10 longest pauses 
     // and pause buckets.
-    public List<double> lohAllocPauses = new List<double>(10);
+    public readonly List<double> LohAllocPauses = new List<double>(10);
 
     // changes when we switch phases
     Phase curPhase;
 
     int curPhaseIndex;
 
-    public MemoryAlloc(uint _threadIndex, in PerThreadArgs args)
+    public MemoryAlloc(uint threadIndex, in PerThreadArgs args)
     {
         rand = new Rand();
-        threadIndex = _threadIndex;
+        this.threadIndex = threadIndex;
 
         this.args = args;
         this.curPhaseIndex = -1;
@@ -1970,12 +1970,12 @@ class MemoryAlloc
 
     public void RunTest()
     {
-        switch (curPhase.testKind)
+        switch (curPhase.TestKind)
         {
-            case TestKind.time:
+            case TestKind.Time:
                 TimeTest();
                 break;
-            case TestKind.highsurvival:
+            case TestKind.Highsurvival:
                 HighSurvivalTest();
                 break;
             default:
@@ -1985,14 +1985,14 @@ class MemoryAlloc
 
     public void HighSurvivalTest()
     {
-        if (curPhase.totalMinutesToRun == 0.0) throw new Exception("totalMinutesToRun must be set");
+        if (curPhase.TotalMinutesToRun == 0.0) throw new Exception("totalMinutesToRun must be set");
 
         // Note: threads already launched, so this is just the code for a single thread.
         // Initial memory for tlgb has already been allocated.
 
         Stopwatch stopwatch = new Stopwatch();
         stopwatch.Start();
-        while (stopwatch.Elapsed.TotalMinutes < curPhase.totalMinutesToRun)
+        while (stopwatch.Elapsed.TotalMinutes < curPhase.TotalMinutesToRun)
         {
             GC.Collect();
         }
@@ -2030,7 +2030,7 @@ class MemoryAlloc
     }
 
     // Keep this in sync with PrintIterInfoHeader
-    private static void PrintIterInfoForBuckets(uint threadIndex, ulong n, long elapsedDiffMS, Bucket[] buckets)
+    private static void PrintIterInfoForBuckets(uint threadIndex, ulong n, long elapsedDiffMs, Bucket[] buckets)
     {
         Console.Write("{0,3} | {1,10:n0} | {2,5:d} | {3,5:d} | {4,4:d} | {5,6:n0} | {6,8:n0}",
             threadIndex,                                                                      // 0
@@ -2038,31 +2038,31 @@ class MemoryAlloc
             GC.CollectionCount(0),                                                            // 2
             GC.CollectionCount(1),                                                            // 3
             GC.CollectionCount(2),                                                            // 4
-            elapsedDiffMS,                                                                    // 5
-            Util.BytesToMB((ulong)GC.GetTotalMemory(false))                                   // 6
+            elapsedDiffMs,                                                                    // 5
+            Util.BytesToMb((ulong)GC.GetTotalMemory(false))                                   // 6
         );
 
         for (uint i = 0; i < buckets.Length; i++)
         {
             Bucket bucket = buckets[i];
-            ulong allocatedBytesSinceLast = bucket.allocatedBytesTotalSum - bucket.allocatedBytesAsOfLastPrint;
+            ulong allocatedBytesSinceLast = bucket.AllocatedBytesTotalSum - bucket.AllocatedBytesAsOfLastPrint;
 
             Console.Write(" | {0,14:n0} | {1,14:n0} | {2,14:n0} | {3,5:n0} | {4,10:n0} | {5,10:f2}",
-                bucket.allocatedBytesTotalSum,
+                bucket.AllocatedBytesTotalSum,
                 allocatedBytesSinceLast,                                                         // 0
-                bucket.survivedBytesSinceLastPrint,                                              // 1
-                GetPercent(bucket.survivedBytesSinceLastPrint, allocatedBytesSinceLast),         // 2
-                bucket.pinnedBytesSinceLastPrint,                                                // 3
+                bucket.SurvivedBytesSinceLastPrint,                                              // 1
+                GetPercent(bucket.SurvivedBytesSinceLastPrint, allocatedBytesSinceLast),         // 2
+                bucket.PinnedBytesSinceLastPrint,                                                // 3
                                                                                                  // TODO: might be more pinned than survived ...
-                GetPercent(bucket.pinnedBytesSinceLastPrint, bucket.survivedBytesSinceLastPrint) // 4
+                GetPercent(bucket.PinnedBytesSinceLastPrint, bucket.SurvivedBytesSinceLastPrint) // 4
             );
 
             // Reset the numbers.
-            bucket.allocatedBytesAsOfLastPrint = bucket.allocatedBytesTotalSum;
-            bucket.survivedBytesSinceLastPrint = 0;
-            bucket.pinnedBytesSinceLastPrint = 0;
-            bucket.allocatedCountSinceLastPrint = 0;
-            bucket.survivedCountSinceLastPrint = 0;
+            bucket.AllocatedBytesAsOfLastPrint = bucket.AllocatedBytesTotalSum;
+            bucket.SurvivedBytesSinceLastPrint = 0;
+            bucket.PinnedBytesSinceLastPrint = 0;
+            bucket.AllocatedCountSinceLastPrint = 0;
+            bucket.SurvivedCountSinceLastPrint = 0;
         }
         Console.WriteLine();
     }
@@ -2075,11 +2075,11 @@ class MemoryAlloc
 
         Stopwatch stopwatchGlobal = new Stopwatch();
 
-        long elapsedLastMS = 0;
+        long elapsedLastMs = 0;
 
-        if (threadIndex == 0 && args.printEveryNthIter != 0)
+        if (threadIndex == 0 && args.PrintEveryNthIter != 0)
         {
-            PrintIterInfoHeader((uint)bucketChooser.buckets.Length);
+            PrintIterInfoHeader((uint)bucketChooser.Buckets.Length);
         }
 
         stopwatchGlobal.Reset();
@@ -2087,17 +2087,17 @@ class MemoryAlloc
 
         while (true)
         {
-            if (threadIndex == 0 && Util.isNth(args.printEveryNthIter, n))
+            if (threadIndex == 0 && Util.IsNth(args.PrintEveryNthIter, n))
             {
-                long elapsedCurrentMS = stopwatchGlobal.ElapsedMilliseconds;
-                long elapsedDiffMS = elapsedCurrentMS - elapsedLastMS;
-                elapsedLastMS = elapsedCurrentMS;
-                PrintIterInfoForBuckets(threadIndex, n, elapsedDiffMS, bucketChooser.buckets);
+                long elapsedCurrentMs = stopwatchGlobal.ElapsedMilliseconds;
+                long elapsedDiffMs = elapsedCurrentMs - elapsedLastMs;
+                elapsedLastMs = elapsedCurrentMs;
+                PrintIterInfoForBuckets(threadIndex, n, elapsedDiffMs, bucketChooser.Buckets);
             }
 
             if (n % ((ulong)1 * 1024 * 1024) == 0)
             {
-                if (curPhase.totalMinutesToRun != 0 && stopwatchGlobal.Elapsed.TotalMinutes >= curPhase.totalMinutesToRun)
+                if (curPhase.TotalMinutesToRun != 0 && stopwatchGlobal.Elapsed.TotalMinutes >= curPhase.TotalMinutesToRun)
                 {
                     if (!GoToNextPhase()) break;
                 }
@@ -2126,14 +2126,14 @@ class MemoryAlloc
     bool GoToNextPhase()
     {
         curPhaseIndex++;
-        if (curPhaseIndex < args.phases.Length)
+        if (curPhaseIndex < args.Phases.Length)
         {
-            curPhase = args.phases[curPhaseIndex];
-            totalAllocBytesLeft = (long)curPhase.totalAllocBytes;
+            curPhase = args.Phases[curPhaseIndex];
+            totalAllocBytesLeft = (long)curPhase.TotalAllocBytes;
 
-            bucketChooser = new BucketChooser(curPhase.buckets);
+            bucketChooser = new BucketChooser(curPhase.Buckets);
 
-            ulong numElements = curPhase.totalLiveBytes / bucketChooser.AverageObjectSize();
+            ulong numElements = curPhase.TotalLiveBytes / bucketChooser.AverageObjectSize();
             oldArr = new OldArr(numElements);
 
             for (uint i = 0; i < numElements; i++)
@@ -2142,10 +2142,10 @@ class MemoryAlloc
                 oldArr.Initialize(i, item);
             }
 
-            if (curPhase.totalLiveBytes == 0)
+            if (curPhase.TotalLiveBytes == 0)
                 Util.AlwaysAssert(oldArr.TotalLiveBytes < 100);
             else
-                Util.AssertAboutEqual(oldArr.TotalLiveBytes, curPhase.totalLiveBytes);
+                Util.AssertAboutEqual(oldArr.TotalLiveBytes, curPhase.TotalLiveBytes);
 
             // if (args.print)
             // {
@@ -2155,12 +2155,12 @@ class MemoryAlloc
             //         lohAllocatedElements, Util.BytesToMB(lohAllocatedBytes));
             // }
 
-            if (args.verifyLiveSize)
+            if (args.VerifyLiveSize)
             {
                 oldArr.VerifyLiveSize();
-                if (!Util.AboutEquals(oldArr.TotalLiveBytes, curPhase.totalLiveBytes))
+                if (!Util.AboutEquals(oldArr.TotalLiveBytes, curPhase.TotalLiveBytes))
                 {
-                    Console.WriteLine($"totalLiveBytes: {oldArr.TotalLiveBytes}, args.totalLiveBytes: {curPhase.totalLiveBytes}");
+                    Console.WriteLine($"totalLiveBytes: {oldArr.TotalLiveBytes}, args.totalLiveBytes: {curPhase.TotalLiveBytes}");
                     throw new Exception("TODO");
                 }
             }
@@ -2169,13 +2169,13 @@ class MemoryAlloc
             // Console.WriteLine("init done");
             // Console.ReadLine();
 
-            if (curPhase.totalAllocBytes != 0)
+            if (curPhase.TotalAllocBytes != 0)
             {
-                Console.WriteLine("Thread {0} stopping phase after {1}MB", threadIndex, Util.BytesToMB(curPhase.totalAllocBytes));
+                Console.WriteLine("Thread {0} stopping phase after {1}MB", threadIndex, Util.BytesToMb(curPhase.TotalAllocBytes));
             }
             else
             {
-                Console.WriteLine("Stopping phase after {0} mins", curPhase.totalMinutesToRun);
+                Console.WriteLine("Stopping phase after {0} mins", curPhase.TotalMinutesToRun);
             }
             return true;
         }
@@ -2187,22 +2187,22 @@ class MemoryAlloc
 
     (ITypeWithPayload, ObjectSpec spec) JustMakeObject()
     {
-        uint SohOverhead;
-        switch (curPhase.allocType)
+        uint sohOverhead;
+        switch (curPhase.AllocType)
         {
             case ItemType.SimpleItem:
-                SohOverhead = Item.SohOverhead;
+                sohOverhead = Item.SohOverhead;
                 break;
             case ItemType.ReferenceItem:
-                SohOverhead = ReferenceItemWithSize.SohOverhead;
+                sohOverhead = ReferenceItemWithSize.SohOverhead;
                 break;
             default:
                 throw new NotImplementedException();
         }
 
-        ObjectSpec spec = bucketChooser.GetNextObjectSpec(rand, SohOverhead);
+        ObjectSpec spec = bucketChooser.GetNextObjectSpec(rand, sohOverhead);
         totalAllocBytesLeft -= spec.Size;
-        switch (curPhase.allocType)
+        switch (curPhase.AllocType)
         {
             case ItemType.SimpleItem:
                 return (Item.New(spec.Size, isPinned: spec.ShouldBePinned, isFinalizable: spec.ShouldBeFinalizable, isPoh: spec.IsPoh), spec);
@@ -2258,7 +2258,7 @@ class MemoryAlloc
     {
         // TODO: How to survive shouldn't belong here; it should
         // belong to the building block that churns the array.
-        switch (curPhase.allocType)
+        switch (curPhase.AllocType)
         {
             case ItemType.SimpleItem:
                 oldArr.Replace(rand.GetRand(oldArr.Length), item);
@@ -2308,7 +2308,7 @@ class MemoryAlloc
                 throw new InvalidOperationException();
         }
 
-        if (args.verifyLiveSize)
+        if (args.VerifyLiveSize)
         {
             oldArr.VerifyLiveSize();
         }
@@ -2318,21 +2318,21 @@ class MemoryAlloc
     {
         if (curPhase.lohPauseMeasure)
         {
-            sw.WriteLine("T{0} {1:n0} entries in pause, top entries(ms)", threadIndex, lohAllocPauses.Count);
+            sw.WriteLine("T{0} {1:n0} entries in pause, top entries(ms)", threadIndex, LohAllocPauses.Count);
             sw.Flush();
 
-            int numLOHAllocPauses = lohAllocPauses.Count;
-            if (numLOHAllocPauses >= 0)
+            int numLohAllocPauses = LohAllocPauses.Count;
+            if (numLohAllocPauses >= 0)
             {
-                lohAllocPauses.Sort();
+                LohAllocPauses.Sort();
                 // lohAllocPauses.OrderByDescending(a => a);
 
                 sw.WriteLine("===============STATS for thread {0}=================", threadIndex);
 
-                int startIndex = ((numLOHAllocPauses < 10) ? 0 : (numLOHAllocPauses - 10));
-                for (int i = startIndex; i < numLOHAllocPauses; i++)
+                int startIndex = ((numLohAllocPauses < 10) ? 0 : (numLohAllocPauses - 10));
+                for (int i = startIndex; i < numLohAllocPauses; i++)
                 {
-                    sw.WriteLine(lohAllocPauses[i]);
+                    sw.WriteLine(LohAllocPauses[i]);
                 }
 
                 sw.WriteLine("===============END STATS for thread {0}=================", threadIndex);
@@ -2354,14 +2354,14 @@ class MemoryAlloc
         sw.WriteLine("Started running");
 
         long tStart = Environment.TickCount;
-        if (args.threadCount > 1)
+        if (args.ThreadCount > 1)
         {
-            ThreadLauncher[] threadLaunchers = new ThreadLauncher[args.threadCount];
-            Thread[] threads = new Thread[args.threadCount];
+            ThreadLauncher[] threadLaunchers = new ThreadLauncher[args.ThreadCount];
+            Thread[] threads = new Thread[args.ThreadCount];
 
-            for (uint i = 0; i < args.threadCount; i++)
+            for (uint i = 0; i < args.ThreadCount; i++)
             {
-                threadLaunchers[i] = new ThreadLauncher(i, args.perThreadArgs);
+                threadLaunchers[i] = new ThreadLauncher(i, args.PerThreadArgs);
                 ThreadStart ts = new ThreadStart(threadLaunchers[i].Run);
                 threads[i] = new Thread(ts);
             }
@@ -2374,27 +2374,27 @@ class MemoryAlloc
                 threadLaunchers[i].Alloc.PrintPauses(sw);
             for (int i = 0; i < threadLaunchers.Length; i++)
             {
-                Bucket[] buckets = threadLaunchers[i].Alloc.bucketChooser.buckets;
+                Bucket[] buckets = threadLaunchers[i].Alloc.bucketChooser.Buckets;
                 for (int j = 0; j < buckets.Length; j++)
                 {
-                    testResult.sohAllocatedBytes += buckets[j].sohAllocatedBytes;
-                    testResult.lohAllocatedBytes += buckets[j].lohAllocatedBytes;
-                    testResult.pohAllocatedBytes += buckets[j].pohAllocatedBytes;
+                    testResult.SohAllocatedBytes += buckets[j].SohAllocatedBytes;
+                    testResult.LohAllocatedBytes += buckets[j].LohAllocatedBytes;
+                    testResult.PohAllocatedBytes += buckets[j].PohAllocatedBytes;
                 }
             }
         }
         else
         {
             // Easier to debug without launching a separate thread
-            ThreadLauncher t = new ThreadLauncher(0, args.perThreadArgs);
+            ThreadLauncher t = new ThreadLauncher(0, args.PerThreadArgs);
             t.Run();
             t.Alloc.PrintPauses(sw);
-            Bucket[] buckets = t.Alloc.bucketChooser.buckets;
+            Bucket[] buckets = t.Alloc.bucketChooser.Buckets;
             for (int j = 0; j < buckets.Length; j++)
             {
-                testResult.sohAllocatedBytes += buckets[j].sohAllocatedBytes;
-                testResult.lohAllocatedBytes += buckets[j].lohAllocatedBytes;
-                testResult.pohAllocatedBytes += buckets[j].pohAllocatedBytes;
+                testResult.SohAllocatedBytes += buckets[j].SohAllocatedBytes;
+                testResult.LohAllocatedBytes += buckets[j].LohAllocatedBytes;
+                testResult.PohAllocatedBytes += buckets[j].PohAllocatedBytes;
             }
         }
         long tEnd = Environment.TickCount;
@@ -2425,7 +2425,7 @@ class MemoryAlloc
 
             TestResult testResult = MainInner(args);
 
-            if (args.endException)
+            if (args.EndException)
             {
                 GC.Collect(2, GCCollectionMode.Forced, true);
 #if TODO
@@ -2435,7 +2435,7 @@ class MemoryAlloc
                 throw new System.ArgumentException("Just an opportunity for debugging", "test");
             }
 
-            if (args.finishWithFullCollect)
+            if (args.FinishWithFullCollect)
             {
                 while (ReferenceItemWithSize.NumFinalized < ReferenceItemWithSize.NumCreatedWithFinalizers)
                 {
@@ -2473,7 +2473,7 @@ class MemoryAlloc
 
         stopwatch.Stop();
 
-        result.secondsTaken = stopwatch.Elapsed.TotalSeconds;
+        result.SecondsTaken = stopwatch.Elapsed.TotalSeconds;
         return result;
     }
 
@@ -2484,16 +2484,16 @@ class MemoryAlloc
         // See `class GCPerfSimResult` in `bench_file.py`, and `_parse_gcperfsim_result` in `run_single_test.py`.
 
         Console.WriteLine("=== STATS ===");
-        Console.WriteLine($"sohAllocatedBytes: {testResult.sohAllocatedBytes}");
-        Console.WriteLine($"lohAllocatedBytes: {testResult.lohAllocatedBytes}");
-        Console.WriteLine($"pohAllocatedBytes: {testResult.pohAllocatedBytes}");
+        Console.WriteLine($"sohAllocatedBytes: {testResult.SohAllocatedBytes}");
+        Console.WriteLine($"lohAllocatedBytes: {testResult.LohAllocatedBytes}");
+        Console.WriteLine($"pohAllocatedBytes: {testResult.PohAllocatedBytes}");
 #if STATISTICS
         TestResult statistics = Statistics.Aggregate();
-        Debug.Assert(testResult.sohAllocatedBytes == statistics.sohAllocatedBytes);
-        Debug.Assert(testResult.lohAllocatedBytes == statistics.lohAllocatedBytes);
-        Debug.Assert(testResult.pohAllocatedBytes == statistics.pohAllocatedBytes);
+        Debug.Assert(testResult.SohAllocatedBytes == statistics.SohAllocatedBytes);
+        Debug.Assert(testResult.LohAllocatedBytes == statistics.LohAllocatedBytes);
+        Debug.Assert(testResult.PohAllocatedBytes == statistics.PohAllocatedBytes);
 #endif
-        Console.WriteLine($"seconds_taken: {testResult.secondsTaken}");
+        Console.WriteLine($"seconds_taken: {testResult.SecondsTaken}");
 
         Console.Write($"collection_counts: [");
         for (int gen = 0; gen <= 2; gen++)
@@ -2508,10 +2508,10 @@ class MemoryAlloc
         Console.WriteLine($"final_total_memory_bytes: {GC.GetTotalMemory(forceFullCollection: false)}");
 
         // Use reflection to detect GC.GetGCMemoryInfo because it doesn't exist in dotnet core 2.0 or in .NET framework.
-        var getGCMemoryInfo = typeof(GC).GetMethod("GetGCMemoryInfo", new Type[] { });
-        if (getGCMemoryInfo != null)
+        var getGcMemoryInfo = typeof(GC).GetMethod("GetGCMemoryInfo", new Type[] { });
+        if (getGcMemoryInfo != null)
         {
-            object info = Util.NonNull(getGCMemoryInfo.Invoke(null, parameters: null));
+            object info = Util.NonNull(getGcMemoryInfo.Invoke(null, parameters: null));
             long heapSizeBytes = GetProperty<long>(info, "HeapSizeBytes");
             long fragmentedBytes = GetProperty<long>(info, "FragmentedBytes");
             Console.WriteLine($"final_heap_size_bytes: {heapSizeBytes}");
